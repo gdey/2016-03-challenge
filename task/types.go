@@ -2,46 +2,81 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	"log -
+	"log"
 	"os"
+	"path"
+	"path/filepath"
+	"strconv"
 	"time"
 )
+
+const rootdir = "task"
+const FileTemplate = rootdir + "/%v.json"
+
+var InvalidError = errors.Errorf("Invalid Object")
+
+// readFile will read the file from the filesystem, and return a T object if it exists.
+func readFile(fn string) (*T, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var t T
+	if err = json.Unmarshal(content, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func filenameForID(id int) { return fmt.Sprintf(FileTemplate, id) }
+
+// Retrieve the task from the disk.
+func Get(id int) (t *T, err error) {
+	t, err = readFile(filenameForID(id))
+	return
+}
+
+// GetNextId will get an id that is not being used.
+func GetNextId() int {
+	ids, _ := List()
+	max := 0
+	for _, i := range ids {
+		if i > max {
+			max = i
+		}
+	}
+	return max + 1
+}
+
+// This will return a list of id's in the data store.
+func List() ([]int, error) {
+
+	var results []int
+
+	names, _ := filepath.Glob(rootdir + "/*")
+	for _, name := range names {
+		dir, file := path.Split(name)
+		ext := path.Ext(file)
+		frune := []rune(file)
+		f := frune[:len(frune)-len(ext)]
+		id, err := strconv.Atoi(f)
+		if err != nil {
+			// Skip invalid id's on the disk
+			log.Println("Invalid file id ", file)
+			continue
+		}
+		results = append(results, id)
+	}
+	return results, nil
+}
 
 type T struct {
 	Id          int       `json:"id"`
 	Description string    `json:"description"`
 	Due         time.Time `json:"due"`
 	Completed   bool      `json:"completed"`
-}
-
-const Rootdir = "task"
-const FileTemplate = "task/%v.json"
-
-var InvalidError = errors.Errorf("Invalid Object")
-
-// Retrieve the task from the disk.
-func Get(id int) (*T, error) {
-	filename := fmt.Sprintf("task/%d.json", id)
-	//file, err := ioutil.ReadFile(filename)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//var t T
-	//if err := json.Unmarshal(file, &t); err != nil {
-	//	return nil, err
-	//}
-	//return &t, nil
-
-	t, ReadUnmarshalFile(filename) (*T, error)
-}
-
-func (t *T) filename() string {
-	id := 0
-	if t != nil {
-		id = t.Id
-	}
-	return fmt.Sprtinf(FileTemplate, id)
 }
 
 // Write will write the Task to disk.
@@ -53,10 +88,10 @@ func (t *T) Write() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(t.filename(),bytes,os.ModePerm)
+	return ioutil.WriteFile(t.filename(), bytes, os.ModePerm)
 }
 
-// Delete will delete the file from the disk.
+// Delete will delete the file from the datastore.
 func (t *T) Delete() (bool, error) {
 	if t == nil {
 		return false, InvalidError
@@ -67,54 +102,9 @@ func (t *T) Delete() (bool, error) {
 	return true, nil
 }
 
-func generateId() int {
-	return int(time.Now().Unix())
-}
-
-func List() ([]T, error) {
-
-	var results []T
-
-	infos, err := ioutil.ReadDir(Rootdir)
-	if err != nil {
-		return results, err
+func (t *T) filename() string {
+	if t != nil {
+		return filenameForID(0)
 	}
-
-	for _, info := range infos {
-		b, err := ioutil.ReadFile(info.Name())
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		var t T
-		if err = json.Unmarshal(b, &t); err != nil {
-			results = append(results, t)
-		}
-	}
-	return results, nil
-}
-
-
-func ReadUnmarshalFile(string filename) (*T, error) {
-	file_content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	var t T
-	if err = json.Unmarshal(file_content, &t); err != nil {
-		return nil, err
-	}
-	return &t, nil
-	
-	//Get function variant:
-	//file, err := ioutil.ReadFile(filename)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//var t T
-	//if err := json.Unmarshal(file, &t); err != nil {
-	//	return nil, err
-	//}
-	//return &t, nil
+	return filenameForID(t.Id)
 }
